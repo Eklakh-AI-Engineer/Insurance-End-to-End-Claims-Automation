@@ -1,188 +1,190 @@
-# 🛡️ ClaimAI — End-to-End Insurance Claims Automation System
+# ClaimAI — Insurance Claims Automation Prototype
 
-> File a claim. Get a decision in minutes. Powered by XGBoost, ResNet, and LLM extraction.
+> **An end-to-end insurance-claims automation prototype combining document extraction, fraud scoring, image analysis, payout estimation, and a review/settlement decision path.**
 
----
+ClaimAI is a prototype/hackathon-style system demonstrating how heterogeneous claim evidence can be processed through a FastAPI backend, ML services, and a React frontend.
+
+It should **not** be presented as a production insurance adjudication system.
+
+## Current scope
+
+| Capability | Status |
+|---|---|
+| FastAPI backend | Implemented |
+| React + Vite frontend | Implemented |
+| PostgreSQL / SQLAlchemy model layer | Implemented |
+| Claim submission API | Implemented |
+| Fraud scoring | Implemented |
+| Image-analysis pipeline | Implemented |
+| Payout estimation | Implemented |
+| LLM/OCR provider integration | Implemented with configurable provider |
+| Admin dashboard / claims view | Implemented |
+| Docker Compose | Implemented |
+| Model training scripts | Present |
+| Automated settlement decision rule | Implemented as prototype logic |
+| Production model validation | **Not claimed** |
+| Production insurance authorization | **Not claimed** |
+| Regulatory/compliance certification | **Not claimed** |
 
 ## Architecture
 
+```text
+Claim submission
+      |
+      v
+FastAPI
+      |
+      +--> OCR / document extraction
+      |
+      +--> Fraud scoring
+      |      XGBoost + Isolation Forest
+      |
+      +--> Image analysis
+      |
+      +--> Payout estimation
+      |      Gradient Boosting
+      |
+      v
+Decision policy
+   |          |
+   v          v
+Approve    Manual Review
+      |
+      v
+Persistence + audit/fraud records
 ```
-policyholders → React Form → FastAPI → [OCR → Fraud → Image → Payout] → Auto-Settlement
-                                  ↑                                           ↓
-                               PostgreSQL  ←────────────── Audit / Fraud Logs
+
+The decision policy currently uses configurable thresholds:
+
+```text
+fraud_score < FRAUD_THRESHOLD
+AND
+payout_match >= PAYOUT_MATCH_THRESHOLD
+AND
+image_valid
 ```
 
-**Auto-Approve** when: `fraud_score < 0.20` **AND** `payout_match > 90%` **AND** `image_valid`  
-**Flag for Manual Review** otherwise.
+This is a **prototype decision rule**, not a validated insurance underwriting policy.
 
----
+## AI / ML components
 
-## Quick Start
+| Component | Current implementation |
+|---|---|
+| OCR / extraction | OpenAI or Gemini provider abstraction |
+| Fraud model | XGBoost + Isolation Forest |
+| Image analysis | OpenCV / image-model pipeline |
+| Payout model | GradientBoostingRegressor |
+| Decision policy | Explicit threshold-based rule |
 
-### 1 – Clone & configure
+Model training scripts are under ml/.
+
+Generated model artifacts are excluded from source control.
+
+### Model claims
+
+The previous README documented approximate training outputs such as AUC and payout MAE. Those figures are **not treated as current benchmark results** in this README.
+
+For recruiter-facing claims, report a metric only when its dataset, split, evaluation procedure, and reproducible run are available.
+
+## Quick start
+
+### 1. Configure
 
 ```bash
-git clone <repo-url>
-cd Insurance
+git clone https://github.com/Eklakh-AI-Engineer/Insurance-End-to-End-Claims-Automation.git
+cd Insurance-End-to-End-Claims-Automation
 cp .env.example .env
-# Edit .env — set OPENAI_API_KEY or GEMINI_API_KEY
 ```
 
-### 2 – Train AI models (first time only)
+Set local development credentials in .env. Never commit .env.
 
-```bash
-cd ..
-pip install -r backend/requirements.txt
+### 2. Backend
 
-python ml/train_fraud_model.py   # → ml/models/fraud_xgb.pkl, iso_forest.pkl
-python ml/train_payout_model.py  # → ml/models/payout_model.pkl
-```
-
-Expected output:
-```
-XGBoost AUC: ~0.93
-Payout MAE:  ~$1,200
-```
-
-### 3a – Run locally (recommended for development)
-
-**Backend:**
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn backend.main:app --reload --port 8000
-# API: http://localhost:8000
-# Swagger UI: http://localhost:8000/docs
+uvicorn main:app --reload --port 8000
 ```
 
-**Frontend (separate terminal):**
+API documentation: http://localhost:8000/docs
+
+### 3. Frontend
+
 ```bash
 cd frontend
 npm install
 npm run dev
-# App: http://localhost:5173
 ```
 
-### 3b – Run with Docker Compose
+### 4. Docker
 
 ```bash
-docker-compose up --build
-# Frontend: http://localhost:5173
-# Backend:  http://localhost:8000
-# Swagger:  http://localhost:8000/docs
+docker compose up --build
 ```
 
----
+## API surface
 
-## API Reference
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | /api/submit-claim | Submit a claim and supporting files |
+| POST | /api/check-fraud | Re-run fraud analysis |
+| GET | /admin/dashboard | Dashboard aggregates |
+| GET | /admin/claims | Claims listing |
+| GET | /admin/heatmap | Fraud-score visualization data |
+| GET | /health | Service health |
 
-| Method | Endpoint             | Description                                   |
-|--------|----------------------|-----------------------------------------------|
-| POST   | `/api/submit-claim`  | Submit a new claim (multipart/form-data)      |
-| POST   | `/api/check-fraud`   | Re-run fraud check on existing claim          |
-| GET    | `/admin/dashboard`   | Aggregate stats for dashboard                 |
-| GET    | `/admin/claims`      | Paginated claims list (filter by status)      |
-| GET    | `/admin/heatmap`     | Fraud score heatmap data                      |
-| GET    | `/health`            | Health check                                  |
+The implementation under backend/routes/ is the authoritative source for request/response behavior.
 
-### POST `/api/submit-claim` — Form Fields
+## Project structure
 
-| Field             | Type    | Required | Description                            |
-|-------------------|---------|----------|----------------------------------------|
-| `claim_type`      | string  | ✅       | `health/auto/property/life/travel`     |
-| `description`     | string  | ✅       | Min 20 chars                           |
-| `requested_amount`| float   | ✅       | Amount in USD                          |
-| `full_name`       | string  | ✅       |                                        |
-| `email`           | string  | ✅       | Valid email                            |
-| `phone`           | string  |          |                                        |
-| `policy_number`   | string  |          |                                        |
-| `incident_date`   | string  |          | ISO date                               |
-| `files`           | files   |          | Images / PDFs (max 5 × 10 MB)         |
-
----
-
-## AI Pipeline
-
-```mermaid
-flowchart LR
-    Upload --> OCR["🔍 OCR\n(GPT-4o / Gemini)"]
-    OCR --> Fraud["🛡️ Fraud\n(XGBoost + IsoForest)"]
-    Fraud --> Image["📷 Image\n(ResNet50 + ELA)"]
-    Image --> Payout["💰 Payout\n(GBR Regression)"]
-    Payout --> Decision{Auto-Settle?}
-    Decision -->|Yes| Approve["✅ Instant Payout"]
-    Decision -->|No| Flag["🔴 Manual Review"]
-```
-
-| Model          | Algorithm                | Purpose                       |
-|----------------|--------------------------|-------------------------------|
-| Fraud Engine   | XGBoost + Isolation Forest | Tabular fraud probability    |
-| Image Analyser | ResNet50 + OpenCV ELA    | Damage detection + forgery    |
-| Payout Model   | GradientBoostingRegressor | Fair payout estimation        |
-| OCR            | GPT-4o Vision / Gemini   | Document data extraction      |
-
----
-
-## Project Structure
-
-```
-Insurance/
+```text
+ClaimAI/
 ├── backend/
-│   ├── main.py              # FastAPI app
-│   ├── config.py            # Settings (Pydantic)
-│   ├── database.py          # SQLAlchemy engine
-│   ├── models.py            # ORM models
-│   ├── schemas.py           # Pydantic schemas
-│   ├── Dockerfile
-│   ├── requirements.txt
+│   ├── main.py
+│   ├── config.py
+│   ├── database.py
+│   ├── models.py
+│   ├── schemas.py
 │   ├── routes/
-│   │   ├── claims.py        # /submit-claim, /check-fraud
-│   │   └── admin.py         # /admin/*
-│   └── services/
-│       ├── ocr_service.py
-│       ├── fraud_service.py
-│       ├── image_service.py
-│       └── payout_service.py
-├── ml/
-│   ├── train_fraud_model.py
-│   ├── train_payout_model.py
-│   └── models/              # .pkl files (git-ignored)
+│   ├── services/
+│   └── tests/
 ├── frontend/
-│   ├── src/
-│   │   ├── App.jsx
-│   │   ├── api/index.js
-│   │   ├── components/
-│   │   │   ├── ClaimForm.jsx
-│   │   │   ├── AdminDashboard.jsx
-│   │   │   ├── FraudHeatmap.jsx
-│   │   │   └── ClaimsTable.jsx
-│   │   └── styles/global.css
-│   └── package.json
+├── ml/
+│   ├── data/
+│   ├── models/
+│   ├── train_fraud_model.py
+│   └── train_payout_model.py
 ├── docker-compose.yml
 ├── .env.example
-└── README.md
+└── docs/
 ```
 
----
+## Security
 
-## Environment Variables
+The previous repository state included a tracked .env file. This maintenance removes it, adds .env to .gitignore, and provides .env.example.
 
-See `.env.example` for the full list. Key variables:
+The inspected environment file used a local PostgreSQL host and had empty OpenAI/Gemini API-key fields; nevertheless, environment files should never be committed.
 
-| Variable               | Default | Description                     |
-|------------------------|---------|---------------------------------|
-| `DATABASE_URL`         | —       | PostgreSQL connection string     |
-| `OPENAI_API_KEY`       | —       | For GPT-4o Vision OCR           |
-| `GEMINI_API_KEY`       | —       | Alternative LLM provider        |
-| `LLM_PROVIDER`         | openai  | `openai` or `gemini`            |
-| `FRAUD_THRESHOLD`      | 0.2     | Score below = auto-approve safe |
-| `PAYOUT_MATCH_THRESHOLD`| 0.90  | Match above = auto-approve      |
+See docs/SECURITY.md.
 
----
+## Important limitations
 
-## Hackathon Notes
+ClaimAI is a prototype:
 
-- **No LLM key?** System falls back to mock OCR — all other AI layers still work.
-- **No GPU?** ResNet50 runs on CPU; inference takes ~0.5s per image.
-- **No PostgreSQL?** Change `DATABASE_URL` to `sqlite:///./insurance.db` for SQLite.
-- Model `.pkl` files are git-ignored. Run training scripts once before starting the backend.
+- fraud scores are model outputs, not proof of fraud;
+- image validity is not a substitute for human claims investigation;
+- payout estimates are model estimates, not contractual entitlement;
+- automated approval is not a regulated insurance determination;
+- no regulatory certification is claimed;
+- no independent production model validation is claimed;
+- model performance should not be inferred from the presence of training scripts.
+
+## Engineering principles
+
+1. Keep extraction, fraud, image, payout, and decision stages explicit.
+2. Keep model outputs distinguishable from business policy.
+3. Make thresholds configurable.
+4. Never commit secrets or generated model binaries.
+5. Preserve a manual-review path.
+6. Report reproducible metrics only.
+7. Treat production insurance authorization as a separate governance problem.
